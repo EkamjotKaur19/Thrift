@@ -1,6 +1,7 @@
 const ordersRouter = require('express').Router()
 const Order = require('../models/order')
 const User = require('../models/users')
+const Message = require('../models/message')
 const jwt = require('jsonwebtoken')
 
 const getTokenFrom = request => {
@@ -40,6 +41,7 @@ ordersRouter.post('/', async (request, response) => {
     return response.status(401).json({ error: 'token missing or invalid' })
   }
   const user = await User.findById(decodedToken.id)
+  
     const order = new Order({
       name: body.name,
       price: body.price,
@@ -50,6 +52,25 @@ ordersRouter.post('/', async (request, response) => {
     const savedorder = await order.save();
     user.orders = user.orders.concat(savedorder._id);
     await user.save();
+
+    const seller = await User.findById(body.seller); // Find the seller by ID
+
+    if (!seller) {
+      return response.status(404).json({ error: 'Seller not found' });
+    }
+
+    const messageToSeller = new Message({
+      sender: decodedToken.id, // Buyer's ID
+      receiver: seller._id, // Seller's ID
+      content: `Order for item ${order.name} has been placed by user-> ${user.name}`,
+      order: savedorder._id, // Reference to the related order
+    });
+  
+    await messageToSeller.save();
+  
+    // Update the seller's messages (you may have to implement this in the User model)
+    seller.messages = seller.messages.concat(messageToSeller._id);
+    await seller.save();
     response.status(201).json(savedorder);
 });
 
